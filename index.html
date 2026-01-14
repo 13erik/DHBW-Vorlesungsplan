@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Stundenplan</title>
+  <link href="https://fonts.cdnfonts.com/css/sf-pro-display" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#f5f5f7; --card:#ffffff; --text:#1d1d1f; --sub:#86868b;
+      --accent:#007aff; --radius:18px; --shadow:0 8px 24px rgba(0,0,0,.08);
+    }
+    @media (prefers-color-scheme: dark){
+      :root{ --bg:#000; --card:#1c1c1e; --text:#f5f5f7; --sub:#98989f; }
+    }
+    body{margin:0;font-family:'SF Pro Display',-apple-system,BlinkMacSystemFont,Helvetica,Arial;
+         background:var(--bg);color:var(--text);display:flex;flex-direction:column;align-items:center;padding:3rem 1rem;}
+    h1{font-size:2.5rem;font-weight:700;margin-bottom:.5rem;}
+    .subtitle{color:var(--sub);margin-bottom:2.5rem;}
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+          padding:1.25rem 1.5rem;margin-bottom:1.25rem;width:100%;max-width:420px;
+          display:flex;justify-content:space-between;align-items:center;}
+    .left .time{font-size:1.1rem;font-weight:600;}
+    .left .course{margin-top:.25rem;color:var(--sub);}
+    .right{text-align:right;color:var(--sub);font-size:.9rem;}
+    .pill{display:inline-block;background:var(--accent);color:#fff;padding:.25rem .6rem;border-radius:999px;font-size:.75rem;margin-top:.4rem;}
+    .error{color:#ff3b30;}
+  </style>
+</head>
+<body>
+  <h1>Stundenplan</h1>
+  <p class="subtitle">Heute & die nächsten Termine</p>
+  <div id="list">lädt …</div>
+
+  <script>
+    const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQYjFjnLCh1et7hEgMGsmwi9vYbeoLHSz_kWwrNJJEh875_DslmSWr67zyQELYGa-0AEcjIXaQibyEN/pubhtml?gid=4&single=true';
+
+    async function fetchPlan(){
+      try{
+        const res = await fetch(SHEET_URL);
+        const text = await res.text();
+        const doc = new DOMParser().parseFromString(text, 'text/html');
+        const rows = [...doc.querySelectorAll('table.waffle tbody tr')];
+
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0,10);
+
+        const list = [];
+        rows.forEach(tr=>{
+          const cells = [...tr.cells].map(td=>td.innerText.trim());
+          if(!cells[0] || !cells[0].match(/\d{1,2}\.\d{1,2}\.\d{4}/)) return;
+          const [d,m,y] = cells[0].split('.');
+          const iso = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+          if(iso < todayStr) return;
+          list.push({iso, time:cells[1], course:cells[2], room:cells[3], type:cells[4]});
+        });
+
+        const container = document.getElementById('list');
+        if(!list.length){ container.innerHTML='<p class="error">Keine zukünftigen Termine.</p>'; return;}
+
+        container.innerHTML = list.map(e=>`
+          <div class="card">
+            <div class="left">
+              <div class="time">${e.iso} · ${e.time}</div>
+              <div class="course">${e.course}</div>
+            </div>
+            <div class="right">
+              <div>${e.room}</div>
+              <span class="pill">${e.type}</span>
+            </div>
+          </div>`).join('');
+      }catch(err){
+        document.getElementById('list').innerHTML='<p class="error">Konnte Plan nicht laden.</p>';
+        console.error(err);
+      }
+    }
+    fetchPlan();
+  </script>
+</body>
+</html>
